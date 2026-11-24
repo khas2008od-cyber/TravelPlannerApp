@@ -1,6 +1,5 @@
 package com.example.travelplannerapp.data
 
-import android.content.Context
 import android.util.Log
 import com.example.travelplannerapp.Trip
 import com.example.travelplannerapp.domain.TripRepository
@@ -9,9 +8,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
-class TripRepositoryImpl(context: Context) : TripRepository {
-
-    private val dao = AppDatabase.getInstance(context).tripDao()
+class TripRepositoryImpl(
+    private val api: CountriesApi,
+    private val dao: TripDao
+) : TripRepository {
 
     override fun observeTrips(): Flow<List<Trip>> {
         return dao.getAll().map { savedTrips ->
@@ -25,7 +25,7 @@ class TripRepositoryImpl(context: Context) : TripRepository {
 
     override suspend fun refresh(): Boolean {
         return try {
-            val countries = ApiClient.api.getCountries()
+            val countries = api.getCountries()
 
             val selectedCountries = listOf(
                 "France",

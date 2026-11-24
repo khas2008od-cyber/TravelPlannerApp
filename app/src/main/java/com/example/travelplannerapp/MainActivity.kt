@@ -13,13 +13,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.travelplannerapp.ui.theme.TravelPlannerAppTheme
+import org.koin.androidx.compose.koinViewModel
 
 enum class TripStatus {
     PLANNED, IN_PROGRESS, COMPLETED
@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TravelApp() {
     val navController = rememberNavController()
-    val listViewModel: ListViewModel = viewModel()
+    val listViewModel: ListViewModel = koinViewModel()
 
     NavHost(
         navController = navController,
@@ -149,11 +149,20 @@ fun TravelScreen(
             Spacer(Modifier.height(12.dp))
 
             Text("Знайдено подорожей: ${filteredTrips.size}")
+
             if (state.errorMessage != null) {
                 Text(
-                    text = state.errorMessage!!,
+                    text = state.errorMessage ?: "",
                     color = MaterialTheme.colorScheme.error,
                     modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+
+            if (state.isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp)
                 )
             }
 
@@ -253,9 +262,7 @@ fun DetailScreen(
             Spacer(Modifier.height(10.dp))
 
             trip.expenses.forEach { expense ->
-                Text(
-                    "${expense.title}: ${expense.amount.toInt()} €"
-                )
+                Text("${expense.title}: ${expense.amount.toInt()} €")
             }
 
             HorizontalDivider(
