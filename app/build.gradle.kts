@@ -38,6 +38,8 @@ android {
 }
 
 dependencies {
+    implementation("io.insert-koin:koin-android:4.2.2")
+    implementation("io.insert-koin:koin-androidx-compose:4.2.2")
     implementation("androidx.room:room-runtime:2.8.5")
     implementation("androidx.room:room-ktx:2.8.5")
     ksp("androidx.room:room-compiler:2.8.5")

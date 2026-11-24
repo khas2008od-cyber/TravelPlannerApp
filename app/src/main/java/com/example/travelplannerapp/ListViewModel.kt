@@ -1,9 +1,8 @@
 package com.example.travelplannerapp
 
-import android.app.Application
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.travelplannerapp.data.TripRepositoryImpl
+import com.example.travelplannerapp.domain.TripRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,9 +16,9 @@ data class ListUiState(
     val errorMessage: String? = null
 )
 
-class ListViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository = TripRepositoryImpl(application)
+class ListViewModel(
+    private val repository: TripRepository
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ListUiState())
 
