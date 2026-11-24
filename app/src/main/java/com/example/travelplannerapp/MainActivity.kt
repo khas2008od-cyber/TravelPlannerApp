@@ -149,6 +149,13 @@ fun TravelScreen(
             Spacer(Modifier.height(12.dp))
 
             Text("Знайдено подорожей: ${filteredTrips.size}")
+            if (state.errorMessage != null) {
+                Text(
+                    text = state.errorMessage!!,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
             Spacer(Modifier.height(12.dp))
 

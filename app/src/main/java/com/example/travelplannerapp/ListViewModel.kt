@@ -1,9 +1,9 @@
 package com.example.travelplannerapp
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.travelplannerapp.data.TripRepositoryImpl
-import com.example.travelplannerapp.domain.GetTripsUseCase
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,38 +13,50 @@ import kotlinx.coroutines.launch
 data class ListUiState(
     val items: List<Trip> = emptyList(),
     val query: String = "",
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val errorMessage: String? = null
 )
 
-class ListViewModel : ViewModel() {
+class ListViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val getTripsUseCase = GetTripsUseCase(TripRepositoryImpl())
+    private val repository = TripRepositoryImpl(application)
 
     private val _uiState = MutableStateFlow(ListUiState())
 
     val uiState: StateFlow<ListUiState> = _uiState.asStateFlow()
 
     init {
-        loadTrips()
+        viewModelScope.launch {
+            repository.observeTrips().collect { trips ->
+                _uiState.update {
+                    it.copy(items = trips)
+                }
+            }
+        }
+
+        refreshTrips()
     }
 
-    private fun loadTrips() {
+    fun refreshTrips() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    errorMessage = null
+                )
+            }
 
-            try {
-                val trips = getTripsUseCase()
+            val success = repository.refresh()
 
-                _uiState.update {
-                    it.copy(
-                        items = trips,
-                        isLoading = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(isLoading = false)
-                }
+            _uiState.update {
+                it.copy(
+                    isLoading = false,
+                    errorMessage = if (success) {
+                        null
+                    } else {
+                        "Немає з'єднання. Показано збережені дані"
+                    }
+                )
             }
         }
     }

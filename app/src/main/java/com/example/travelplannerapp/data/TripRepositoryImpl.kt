@@ -1,19 +1,33 @@
 package com.example.travelplannerapp.data
 
-import com.example.travelplannerapp.Destination
-import com.example.travelplannerapp.Expense
+import android.content.Context
+import android.util.Log
 import com.example.travelplannerapp.Trip
-import com.example.travelplannerapp.TripStatus
 import com.example.travelplannerapp.domain.TripRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 
-class TripRepositoryImpl : TripRepository {
+class TripRepositoryImpl(context: Context) : TripRepository {
+
+    private val dao = AppDatabase.getInstance(context).tripDao()
+
+    override fun observeTrips(): Flow<List<Trip>> {
+        return dao.getAll().map { savedTrips ->
+            savedTrips.map { it.toDomain() }
+        }
+    }
 
     override suspend fun getTrips(): List<Trip> {
+        return observeTrips().first()
+    }
+
+    override suspend fun refresh(): Boolean {
         return try {
             val countries = ApiClient.api.getCountries()
 
-            val selected = listOf(
+            val selectedCountries = listOf(
                 "France",
                 "Italy",
                 "Czechia",
@@ -24,49 +38,26 @@ class TripRepositoryImpl : TripRepository {
                 "Japan"
             )
 
-            val budgets = listOf(
-                1500.0, 900.0, 400.0, 1300.0,
-                250.0, 600.0, 700.0, 3000.0
-            )
-
-            val statuses = listOf(
-                TripStatus.PLANNED,
-                TripStatus.COMPLETED,
-                TripStatus.PLANNED,
-                TripStatus.IN_PROGRESS,
-                TripStatus.COMPLETED,
-                TripStatus.PLANNED,
-                TripStatus.COMPLETED,
-                TripStatus.PLANNED
-            )
-
-            selected.mapIndexedNotNull { index, countryName ->
+            val trips = selectedCountries.mapIndexedNotNull { index, countryName ->
                 val country = countries.find {
                     it.name.common.equals(countryName, ignoreCase = true)
-                } ?: return@mapIndexedNotNull null
+                }
 
-                Trip(
-                    id = index + 1,
-                    name = "Подорож до ${country.name.common}",
-                    destination = Destination(
-                        country = country.name.common,
-                        city = country.capital?.firstOrNull() ?: "Невідомо"
-                    ),
-                    budget = budgets[index],
-                    status = statuses[index],
-                    expenses = listOf(
-                        Expense("Транспорт", budgets[index] * 0.2),
-                        Expense("Готель", budgets[index] * 0.3)
-                    ),
-                    notes = "Регіон: ${country.region ?: "Невідомо"}"
-                )
+                country?.toEntity(index + 1)
+            }
+
+            if (trips.isNotEmpty()) {
+                dao.insertAll(trips)
+                true
+            } else {
+                false
             }
 
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            android.util.Log.e("TravelPlanner", "Помилка завантаження країн", e)
-            emptyList()
+            Log.e("TravelPlanner", "Помилка синхронізації", e)
+            false
         }
     }
 }
