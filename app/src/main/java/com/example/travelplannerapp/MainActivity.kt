@@ -12,6 +12,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -48,50 +50,6 @@ sealed class Result<out T> {
     data class Error(val message: String) : Result<Nothing>()
 }
 
-val trips = listOf(
-    Trip(1, "Відпочинок у Парижі",
-        Destination("Франція", "Париж"), 1500.0,
-        TripStatus.PLANNED,
-        listOf(Expense("Готель", 500.0), Expense("Квитки", 300.0)),
-        "Відвідати Ейфелеву вежу"),
-
-    Trip(2, "Подорож до Рима",
-        Destination("Італія", "Рим"), 900.0,
-        TripStatus.COMPLETED,
-        listOf(Expense("Готель", 350.0), Expense("Їжа", 200.0))),
-
-    Trip(3, "Вікенд у Празі",
-        Destination("Чехія", "Прага"), 400.0,
-        TripStatus.PLANNED,
-        listOf(Expense("Транспорт", 100.0), Expense("Готель", 150.0))),
-
-    Trip(4, "Море в Барселоні",
-        Destination("Іспанія", "Барселона"), 1300.0,
-        TripStatus.IN_PROGRESS,
-        listOf(Expense("Квитки", 400.0), Expense("Готель", 450.0))),
-
-    Trip(5, "Гори у Словаччині",
-        Destination("Словаччина", "Татри"), 250.0,
-        TripStatus.COMPLETED,
-        listOf(Expense("Транспорт", 50.0), Expense("Проживання", 100.0))),
-
-    Trip(6, "Подорож до Берліна",
-        Destination("Німеччина", "Берлін"), 600.0,
-        TripStatus.PLANNED,
-        listOf(Expense("Квитки", 150.0), Expense("Готель", 250.0))),
-
-    Trip(7, "Відпочинок у Відні",
-        Destination("Австрія", "Відень"), 700.0,
-        TripStatus.COMPLETED,
-        listOf(Expense("Транспорт", 120.0), Expense("Готель", 300.0))),
-
-    Trip(8, "Подорож до Токіо",
-        Destination("Японія", "Токіо"), 3000.0,
-        TripStatus.PLANNED,
-        listOf(Expense("Авіаквитки", 1000.0), Expense("Готель", 900.0)),
-        "Відвідати район Сібуя")
-)
-
 fun TripStatus.label(): String {
     return when (this) {
         TripStatus.PLANNED -> "Заплановано"
@@ -115,6 +73,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun TravelApp() {
     val navController = rememberNavController()
+    val listViewModel: ListViewModel = viewModel()
 
     NavHost(
         navController = navController,
@@ -122,6 +81,7 @@ fun TravelApp() {
     ) {
         composable("list") {
             TravelScreen(
+                listViewModel = listViewModel,
                 onTripClick = { id ->
                     navController.navigate("details/$id")
                 }
@@ -137,7 +97,7 @@ fun TravelApp() {
             )
         ) { entry ->
             val id = entry.arguments?.getInt("itemId")
-            val trip = trips.find { it.id == id }
+            val trip = id?.let { listViewModel.getTripById(it) }
 
             if (trip != null) {
                 DetailScreen(
@@ -152,13 +112,16 @@ fun TravelApp() {
 }
 
 @Composable
-fun TravelScreen(onTripClick: (Int) -> Unit) {
-    var search by remember { mutableStateOf("") }
+fun TravelScreen(
+    listViewModel: ListViewModel,
+    onTripClick: (Int) -> Unit
+) {
+    val state by listViewModel.uiState.collectAsStateWithLifecycle()
 
-    val filteredTrips = trips.filter {
-        it.name.contains(search, ignoreCase = true) ||
-                it.destination.city.contains(search, ignoreCase = true) ||
-                it.destination.country.contains(search, ignoreCase = true)
+    val filteredTrips = state.items.filter {
+        it.name.contains(state.query, ignoreCase = true) ||
+                it.destination.city.contains(state.query, ignoreCase = true) ||
+                it.destination.country.contains(state.query, ignoreCase = true)
     }
 
     Scaffold { padding ->
@@ -169,15 +132,15 @@ fun TravelScreen(onTripClick: (Int) -> Unit) {
                 .padding(16.dp)
         ) {
             Text(
-                "Планувальник подорожей",
+                text = "Планувальник подорожей",
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Spacer(Modifier.height(16.dp))
 
             OutlinedTextField(
-                value = search,
-                onValueChange = { search = it },
+                value = state.query,
+                onValueChange = { listViewModel.updateSearch(it) },
                 label = { Text("Пошук подорожі") },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
@@ -196,18 +159,25 @@ fun TravelScreen(onTripClick: (Int) -> Unit) {
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onTripClick(trip.id) },
+                            .clickable {
+                                onTripClick(trip.id)
+                            },
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Column(Modifier.padding(16.dp)) {
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
                             Text(
-                                trip.name,
+                                text = trip.name,
                                 style = MaterialTheme.typography.titleMedium
                             )
 
                             Spacer(Modifier.height(6.dp))
 
-                            Text("${trip.destination.country}, ${trip.destination.city}")
+                            Text(
+                                "${trip.destination.country}, ${trip.destination.city}"
+                            )
+
                             Text("Бюджет: ${trip.budget.toInt()} €")
                             Text("Статус: ${trip.status.label()}")
                             Text("Натисніть для деталей")
@@ -220,7 +190,10 @@ fun TravelScreen(onTripClick: (Int) -> Unit) {
 }
 
 @Composable
-fun DetailScreen(trip: Trip, onBack: () -> Unit) {
+fun DetailScreen(
+    trip: Trip,
+    onBack: () -> Unit
+) {
     val spent = trip.expenses.sumOf { it.amount }
     val remaining = trip.budget - spent
 
@@ -244,14 +217,18 @@ fun DetailScreen(trip: Trip, onBack: () -> Unit) {
                 .padding(20.dp)
         ) {
             Text(
-                trip.name,
+                text = trip.name,
                 style = MaterialTheme.typography.headlineMedium
             )
 
             Spacer(Modifier.height(20.dp))
 
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp)
+                ) {
                     Text("Країна: ${trip.destination.country}")
                     Text("Місто: ${trip.destination.city}")
                     Text("Статус: ${trip.status.label()}")
@@ -262,17 +239,21 @@ fun DetailScreen(trip: Trip, onBack: () -> Unit) {
             Spacer(Modifier.height(20.dp))
 
             Text(
-                "Витрати",
+                text = "Витрати",
                 style = MaterialTheme.typography.titleLarge
             )
 
             Spacer(Modifier.height(10.dp))
 
             trip.expenses.forEach { expense ->
-                Text("${expense.title}: ${expense.amount.toInt()} €")
+                Text(
+                    "${expense.title}: ${expense.amount.toInt()} €"
+                )
             }
 
-            HorizontalDivider(Modifier.padding(vertical = 12.dp))
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 12.dp)
+            )
 
             Text("Всього витрачено: ${spent.toInt()} €")
             Text("Залишок бюджету: ${remaining.toInt()} €")
@@ -281,7 +262,7 @@ fun DetailScreen(trip: Trip, onBack: () -> Unit) {
                 Spacer(Modifier.height(20.dp))
 
                 Text(
-                    "Нотатки",
+                    text = "Нотатки",
                     style = MaterialTheme.typography.titleLarge
                 )
 
